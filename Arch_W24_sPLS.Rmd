@@ -1,0 +1,119 @@
+```{r}
+library(mixOmics)
+library(compositions)
+```
+
+```{r}
+flow <- read.csv("C:/Users/melod/Desktop/Mirror/RongRong/Dry/Thesis/sPLS/Arch_W24/csv_file/Arch_Progression_H.poly.csv" , row.names = 1)
+flow <- flow[, 1:(ncol(flow)-2)]
+```
+
+```{r}
+OTU <- read.csv("C:/Users/melod/Desktop/Mirror/RongRong/Dry/Thesis/sPLS/Arch_W24/csv_file/TaxaCombined_Order_W24.csv" , row.names = 1)
+```
+
+```{r}
+order <- row.names(flow)
+OTU <- OTU[order, ]
+flow[is.na(flow)] <- 0
+```
+
+```{r}
+#Filter OTU
+OTU_variances <- apply(OTU, 2, var)  
+OTU_filtered <- OTU[, OTU_variances != 0]  
+```
+
+```{r}
+#Filter flow
+flow_variances <- apply(flow, 2, var)  
+flow_filtered <- flow[, flow_variances != 0] 
+```
+
+```{r}
+#Scale the data.
+OTU_clr <- clr(OTU_filtered)
+flow_clr <- clr(flow_filtered)
+```
+
+```{r}
+OTU_clr <- as.data.frame(OTU_clr)
+flow_clr  <- as.data.frame(flow_clr)
+```
+
+```{r}
+X <- list(OTU = OTU_clr , flow = flow_clr) 
+lapply(X, dim)
+```
+```{r}
+list.keepX = c(10, 10)
+list.keepY = c(10, 10)
+pls <- spls(X[["OTU"]], X[["flow"]], 
+             keepX = list.keepX, keepY = list.keepY)
+```
+
+```{r}
+plotVar(pls, cutoff = 0.5, title = "(a) OTU vs flow",
+        legend = c("OTU", "Flow"),
+        var.names = FALSE, style = 'graphics',
+        pch = c(16, 17), cex = c(2,2),
+        col = c('darkorchid', 'lightgreen'))
+```
+
+```{r}
+# calculate correlation of OTU and flow
+cor(pls$variates$X, pls$variates$Y)
+```
+
+```{r}
+# for square matrix filled with 0.5s
+design = matrix(0.5, ncol = length(X), nrow = length(X), 
+                dimnames = list(names(X), names(X)))
+diag(design) = 0 # set diagonal to 0s
+
+basic.mbspls.model = block.spls(X, indY = 1, # generate basic model
+                                ncomp = 5, 
+                                design = design)
+```
+
+```{r}
+group <- rownames(OTU_filtered)
+```
+
+```{r}
+circosPlot(basic.mbspls.model, 
+           group = group, 
+           cutoff = 0.5,
+           Y.name = 'OTU')
+```
+
+```{r}
+choice.ncomp <- 2
+choice.keepX <- list(OTU = rep(15, 2),  
+                     flow = rep(30, 2))
+```
+
+```{r}
+# generate final model using "tuned" parameters
+final.mbspls.model = block.spls(X, indY = 1,  
+                                ncomp = choice.ncomp, 
+                                keepX = choice.keepX,
+                                design = design)
+```
+
+```{r}
+circosPlot(final.mbspls.model, 
+           group = group, 
+           cutoff = 0.5,
+           Y.name = 'OTU',
+           size.variables = 0.6)
+dev.copy(png,"output.png", height = 20 , width = 30, units="cm", res=300)
+dev.off()
+```
+
+```{r}
+png("heatmap_res.png", width = 1000 , height = 1200 , res = 100)
+cim(final.mbspls.model , comp = 1:2, xlab = "Flow", ylab = "OTU" , title = 'OTU vs Flow of Arch W24' ,  margins = c(15,18))
+dev.off()
+```
+
